@@ -1,6 +1,6 @@
 import streamlit as st
 import os
-from langchain_community.document_loaders import PyPDFLoader
+from langchain_community.document_loaders import PyPDFDirectoryLoader
 from langchain_text_splitters import RecursiveCharacterTextSplitter
 from langchain_community.embeddings import OllamaEmbeddings
 from langchain_community.llms import Ollama
@@ -18,21 +18,20 @@ st.set_page_config(page_title="Chatbot PI-V", page_icon="🤖")
 st.title("🤖 Chatbot RAG Local - PI-V")
 st.caption(f"Rodando 100% offline com Ollama ({LLM_MODEL})")
 
-DOC_PATH = "documentacao_PI-V.pdf"
+DOC_DIR = "documentos"
 
 @st.cache_resource
 def load_and_process_document():
-    if not os.path.exists(DOC_PATH):
+    # Verifica se a pasta existe e se não está vazia
+    if not os.path.exists(DOC_DIR) or not os.listdir(DOC_DIR):
         return None
     
-    with st.spinner('Processando PDF e gerando embeddings...'):
-        loader = PyPDFLoader(DOC_PATH)
+    with st.spinner('Processando PDFs e gerando embeddings (isso vai demorar um pouco mais agora)...'):
+        # Carrega todos os PDFs da pasta de uma vez
+        loader = PyPDFDirectoryLoader(DOC_DIR)
         docs = loader.load()
         
-        text_splitter = RecursiveCharacterTextSplitter(
-    chunk_size=1500, 
-    chunk_overlap=300
-)
+        text_splitter = RecursiveCharacterTextSplitter(chunk_size=1500, chunk_overlap=300)
         splits = text_splitter.split_documents(docs)
         
         embeddings = OllamaEmbeddings(model=EMBEDDING_MODEL)
@@ -42,7 +41,7 @@ def load_and_process_document():
 vectorstore = load_and_process_document()
 
 if vectorstore is None:
-    st.error(f"Arquivo '{DOC_PATH}' não encontrado. Coloque o PDF na raiz do projeto.")
+    st.error(f"Arquivo '{DOC_DIR}' não encontrado. Coloque os PDFs na pasta 'documentos'.")
 else:
     llm = Ollama(model=LLM_MODEL, temperature=0.2)
     retriever = vectorstore.as_retriever(
