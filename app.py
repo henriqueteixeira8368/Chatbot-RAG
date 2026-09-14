@@ -11,7 +11,7 @@ from langchain_core.runnables import RunnablePassthrough
 from langchain_core.output_parsers import StrOutputParser
 
 # Configurações do Ollama
-LLM_MODEL = "llama3" 
+LLM_MODEL = "phi3" 
 EMBEDDING_MODEL = "nomic-embed-text"
 
 st.set_page_config(page_title="Chatbot PI-V", page_icon="🤖")
@@ -22,20 +22,28 @@ DOC_DIR = "documentos"
 
 @st.cache_resource
 def load_and_process_document():
-    # Verifica se a pasta existe e se não está vazia
+    embeddings = OllamaEmbeddings(model=EMBEDDING_MODEL)
+    
+    # 1. O "Pulo do Gato": Tenta carregar o banco se ele já existir (Rápido!)
+    if os.path.exists("faiss_index"):
+        return FAISS.load_local("faiss_index", embeddings, allow_dangerous_deserialization=True)
+    
+    # 2. Se o banco não existir, vai ler os PDFs (Demorado, mas só acontece 1 vez)
     if not os.path.exists(DOC_DIR) or not os.listdir(DOC_DIR):
         return None
     
-    with st.spinner('Processando PDFs e gerando embeddings (isso vai demorar um pouco mais agora)...'):
-        # Carrega todos os PDFs da pasta de uma vez
+    with st.spinner('Vetorizando documentos (Isso só vai demorar desta vez!)...'):
         loader = PyPDFDirectoryLoader(DOC_DIR)
         docs = loader.load()
         
         text_splitter = RecursiveCharacterTextSplitter(chunk_size=1500, chunk_overlap=300)
         splits = text_splitter.split_documents(docs)
         
-        embeddings = OllamaEmbeddings(model=EMBEDDING_MODEL)
         vectorstore = FAISS.from_documents(splits, embeddings)
+        
+        # Salva o banco processado em uma pasta local
+        vectorstore.save_local("faiss_index")
+        
         return vectorstore
 
 vectorstore = load_and_process_document()
